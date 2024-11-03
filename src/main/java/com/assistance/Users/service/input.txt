@@ -1,0 +1,177 @@
+package com.assistance.Users.service; // Package declaration for the service
+
+import java.time.DayOfWeek; // Import for handling days of the week
+import java.time.LocalDateTime; // Import for handling date and time
+import java.time.format.DateTimeFormatter; // Import for formatting date and time
+import java.time.temporal.TemporalAdjusters; // Import for adjusting dates
+import java.util.HashMap; // Import for using a hash map
+import java.util.List; // Import for using a list
+import java.util.Map; // Import for using a map
+import java.util.regex.Matcher; // Import for regex matching
+import java.util.regex.Pattern; // Import for using regex patterns
+
+public class TimeDetection {
+
+    // Regex pattern to match time in 12-hour format with AM/PM
+    private static final String TIME_REGEX = "\\b(\\d{1,2})(:(\\d{2}))?\\s*(AM|PM|am|pm|o'clock)\\b";
+
+    // List of time-related keywords for detection
+    private static final List<String> TIME_KEYWORDS = List.of(
+            // Largest phrases first
+            "later this year",
+            "by tomorrow evening",
+            "at noon tomorrow",
+            "after the holidays",
+            "beginning of next month",
+            "next quarter",
+            "later this week",
+            "early next week",
+            "in a couple of days",
+            "in two days",
+            "in a few hours",
+            "in a few minutes",
+            "this afternoon",
+            "this evening",
+            "this morning",
+            "tonight",
+            "tomorrow night",
+            "next Tuesday",
+            "this weekend",
+            "next month",
+            "first thing in the morning",
+            "around noon",
+            "by noon",
+            "at dusk",
+            "at midnight",
+            "at dawn",
+            "in a minute",
+            "in an hour",
+            "for the next few days",
+            "in a week",
+            "in a month",
+            "this week",
+            "shortly",
+            "later",
+            "soon",
+            "after work",
+            "towards the weekend",
+            "in a day or two",
+            "at the end of the week",
+            "on the weekend"
+    );
+
+
+    // Map to associate keywords with date/time adjustments
+    private static final Map<String, LocalDateTimeAdjuster> TIME_ADJUSTMENTS = new HashMap<>();
+
+    // Static block to initialize keyword adjustments
+ static {
+     // Adding longer phrases first for better matching
+     TIME_ADJUSTMENTS.put("beginning of next month", now -> now.with(TemporalAdjusters.firstDayOfNextMonth()).withHour(9).withMinute(0)); // Set to 9 AM on the first day of next month
+     TIME_ADJUSTMENTS.put("end of next month", now -> now.plusMonths(1).with(TemporalAdjusters.lastDayOfMonth())); // Set to the last day of next month
+     TIME_ADJUSTMENTS.put("after the holidays", now -> now.plusDays(10)); // Adjust to ten days after holidays
+     TIME_ADJUSTMENTS.put("next quarter", now -> now.plusMonths(3)); // Move to the next quarter
+     TIME_ADJUSTMENTS.put("later this year", now -> now.plusMonths(6)); // Adjust to six months later in the year
+     TIME_ADJUSTMENTS.put("later this week", now -> now.plusDays(3)); // Adjust to three days later in the week
+     TIME_ADJUSTMENTS.put("early next week", now -> now.with(TemporalAdjusters.next(DayOfWeek.MONDAY)).withHour(9).withMinute(0)); // Set to 9 AM next Monday
+     TIME_ADJUSTMENTS.put("in a couple of days", now -> now.plusDays(2)); // Adjust to two days later
+     TIME_ADJUSTMENTS.put("this weekend", now -> now.with(TemporalAdjusters.nextOrSame(DayOfWeek.SATURDAY))); // Set to this weekend
+     TIME_ADJUSTMENTS.put("next Tuesday", now -> now.with(TemporalAdjusters.next(DayOfWeek.TUESDAY))); // Set to next Tuesday
+     TIME_ADJUSTMENTS.put("tomorrow night", now -> now.plusDays(1).withHour(20).withMinute(0)); // Set to 8 PM tomorrow
+     TIME_ADJUSTMENTS.put("after work", now -> now.withHour(17).withMinute(0)); // Set to 5 PM today
+     TIME_ADJUSTMENTS.put("this afternoon", now -> now.withHour(15).withMinute(0)); // Set time to 3 PM today
+     TIME_ADJUSTMENTS.put("this evening", now -> now.withHour(18).withMinute(0)); // Set to 6 PM today
+     TIME_ADJUSTMENTS.put("this morning", now -> now.withHour(9).withMinute(0)); // Set to 9 AM today
+     TIME_ADJUSTMENTS.put("around noon", now -> now.withHour(12).withMinute(0)); // Set to 12 PM today
+     TIME_ADJUSTMENTS.put("by noon", now -> now.withHour(12).withMinute(0)); // Set to 12 PM
+     TIME_ADJUSTMENTS.put("at noon tomorrow", now -> now.plusDays(1).withHour(12).withMinute(0)); // Set to 12 PM tomorrow
+     TIME_ADJUSTMENTS.put("tonight", now -> now.withHour(19).withMinute(0)); // Set time to 7 PM today
+     TIME_ADJUSTMENTS.put("at the end of the week", now -> now.with(TemporalAdjusters.next(DayOfWeek.SUNDAY)).withHour(23).withMinute(59)); // Set to end of the week
+     TIME_ADJUSTMENTS.put("at midnight", now -> now.withHour(0).withMinute(0)); // Set to midnight
+     TIME_ADJUSTMENTS.put("at dawn", now -> now.withHour(6).withMinute(0)); // Set to 6 AM
+     TIME_ADJUSTMENTS.put("at dusk", now -> now.withHour(18).withMinute(0)); // Set to 6 PM today
+     TIME_ADJUSTMENTS.put("in a week", now -> now.plusWeeks(1)); // Move to next week
+     TIME_ADJUSTMENTS.put("in a month", now -> now.plusMonths(1)); // Move to next month
+     TIME_ADJUSTMENTS.put("next month", now -> now.plusMonths(1)); // Adjust date to next month
+     TIME_ADJUSTMENTS.put("in two days", now -> now.plusDays(2)); // Adjust date to two days later
+     TIME_ADJUSTMENTS.put("shortly", now -> now.plusMinutes(5)); // Adjust time by 5 minutes
+     TIME_ADJUSTMENTS.put("in a minute", now -> now.plusMinutes(1)); // Adjust time by 1 minute
+     TIME_ADJUSTMENTS.put("in an hour", now -> now.plusHours(1)); // Adjust time by 1 hour
+     TIME_ADJUSTMENTS.put("in a few hours", now -> now.plusHours(2)); // Adjust time by 2 hours
+     TIME_ADJUSTMENTS.put("in a few minutes", now -> now.plusMinutes(5)); // Adjust time by 5 minutes
+     TIME_ADJUSTMENTS.put("later", now -> now.plusHours(1)); // Adjust time by 1 hour
+     TIME_ADJUSTMENTS.put("soon", now -> now.plusMinutes(10)); // Adjust time by 10 minutes
+ }
+
+    public static void main(String[] args) {
+        String input = "set i will call rohan tomorrow morning"; // Test input for extraction
+        LocalDateTime extractedTime = extractDateTime(input); // Extract time based on input
+        if (extractedTime != null) {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd hh:mm a"); // Define the date/time format
+            System.out.println("Extracted Time: " + extractedTime.format(formatter)); // Print the formatted extracted time
+        } else {
+            System.out.println("No valid time detected."); // Indicate failure to detect a time
+        }
+    }
+
+    // Method to extract date and time from the input string
+    // Method to extract date and time from the input string
+    static LocalDateTime extractDateTime(String input) {
+        LocalDateTime date = LocalDateTime.now(); // Start with the current date and time
+        String originalInput = input; // Keep the original input for time extraction
+
+        // Normalize input for easier keyword matching
+        input = input.toLowerCase(); // Convert the input string to lowercase
+
+        // Process until no keywords remain
+        boolean hasKeywords = true; // Flag to control the keyword detection loop
+        while (hasKeywords) {
+            hasKeywords = false; // Reset the flag for the next iteration
+            for (String keyword : TIME_KEYWORDS) { // Check each keyword for a match
+                if (input.contains(keyword)) { // If the keyword is found in the input
+                    hasKeywords = true; // Indicate a keyword was found
+                    System.out.println("Keyword Detected: " + keyword); // Log the detected keyword
+                    date = handleKeyword(keyword, date); // Apply the time adjustment based on the keyword
+                    input = input.replace(keyword, "").trim(); // Remove the keyword from the input string
+                    // After adjusting for the keyword, check for explicit time matches
+                    Pattern pattern = Pattern.compile(TIME_REGEX); // Compile regex for matching time
+                    Matcher matcher = pattern.matcher(originalInput); // Create a matcher for the original input
+                    if (matcher.find()) { // If any time match is found
+                        String timeStr = matcher.group(); // Extract the matched time string
+                        System.out.println("Matched time string: " + timeStr); // Log the matched time string
+
+                        int hour = Integer.parseInt(matcher.group(1)); // Get the hour from the matched group
+                        int minute = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 0; // Get the minute, default to 0
+
+                        // Adjust hour based on AM/PM
+                        String amPm = matcher.group(4).toLowerCase(); // Get the AM/PM part from the match
+                        if (amPm.equals("pm") && hour < 12) {
+                            hour += 12; // Convert PM hour to 24-hour format
+                        } else if (amPm.equals("am") && hour == 12) {
+                            hour = 0; // Handle midnight case for AM
+                        }
+
+                        // Update the date with the extracted time
+                        date = date.withHour(hour).withMinute(minute); // Set the hour and minute in the date
+                    }
+                    break; // Break to restart keyword checking
+                }
+            }
+        }
+
+        return date; // Return the adjusted LocalDateTime object
+    }
+
+
+    // Adjusts LocalDateTime based on the detected keyword
+    static LocalDateTime handleKeyword(String keyword, LocalDateTime date) {
+        LocalDateTimeAdjuster adjuster = TIME_ADJUSTMENTS.get(keyword); // Get the corresponding adjuster for the keyword
+        return adjuster != null ? adjuster.adjust(date) : date; // Apply adjustment if found, else return original date
+    }
+
+    // Functional interface for time adjustments
+    @FunctionalInterface
+    interface LocalDateTimeAdjuster {
+        LocalDateTime adjust(LocalDateTime date); // Method to adjust LocalDateTime
+    }
+}
