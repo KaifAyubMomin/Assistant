@@ -13,8 +13,9 @@ import java.util.regex.Pattern;
 public class TimeDetection {
 
     private static final Map<String, LocalDateTimeAdjuster> TIME_ADJUSTMENTS = new HashMap<>();
-// Improved regex pattern to handle optional minutes and AM/PM markers
-private static final String TIME_REGEX = "(?i)\\b(1[0-2]|[1-9])(?::([0-5][0-9]))?\\s*(am|pm|a\\.m\\.|p\\.m\\.|o'clock|oclock)\\b";
+    // Adjusted regex pattern to capture optional minutes and AM/PM markers
+    private static final String TIME_REGEX = "(?i)\\b(1[0-2]|[1-9])(?::([0-5][0-9]))?\\s*(am|pm|a\\.m\\.|p\\.m\\.|o'clock|oclock|hours?)\\b";
+
     // Constructor that initializes time adjustments in memory
     public TimeDetection() {
         initializeTimeAdjustments();
@@ -22,7 +23,7 @@ private static final String TIME_REGEX = "(?i)\\b(1[0-2]|[1-9])(?::([0-5][0-9]))
 
     public static void main(String[] args) {
         TimeDetection timeDetection = new TimeDetection();
-        String input = "remind me that tomorrow at 2:30 am";
+        String input = "remind me that I have to go to namaz at 1:30 pm";
         LocalDateTime extractedDateTime = timeDetection.extractDateTime(input);
 
         if (extractedDateTime != null) {
@@ -34,16 +35,13 @@ private static final String TIME_REGEX = "(?i)\\b(1[0-2]|[1-9])(?::([0-5][0-9]))
         }
     }
 
-
-
     public LocalDateTime extractDateTime(String input) {
         LocalDateTime date = LocalDateTime.now(); // Start with the current date and time
-        String originalInput = input.replace("." , ""); // Keep the original input for time extraction
+        String originalInput = input; // Keep the original input for time extraction
 
         // Normalize input for easier keyword matching
         input = input.toLowerCase(); // Convert the input string to lowercase
 
-        System.out.println("processed date : " +  input );
         boolean hasKeywords = true; // Flag to control the keyword detection loop
         boolean timeOverride = false; // Flag to override time if specific time is detected
 
@@ -110,6 +108,24 @@ private static final String TIME_REGEX = "(?i)\\b(1[0-2]|[1-9])(?::([0-5][0-9]))
         LocalDateTime adjust(LocalDateTime now); // Method to adjust the current date/time
     }
 
+    // Method to remove time-related phrases and specific times from the input sentence
+    public String removeTimePhrases(String input) {
+        // Convert the input to lowercase for case-insensitive keyword matching
+        String modifiedInput = input.toLowerCase();
+
+        // Remove all time-related keywords from the input
+        for (String keyword : TIME_ADJUSTMENTS.keySet()) {
+            if (modifiedInput.contains(keyword)) {
+                modifiedInput = modifiedInput.replace(keyword, "").trim(); // Remove keyword and trim spaces
+            }
+        }
+
+        // Remove any specific times matching the TIME_REGEX pattern
+        modifiedInput = modifiedInput.replaceAll(TIME_REGEX, "").trim(); // Remove matched times and trim spaces
+
+        // Return the cleaned input without time-related phrases and specific times
+        return modifiedInput;
+    }
 
 
 
@@ -289,27 +305,6 @@ private static final String TIME_REGEX = "(?i)\\b(1[0-2]|[1-9])(?::([0-5][0-9]))
 
 
 
-    }
-
-    // Method to remove time-related phrases and specific times from the input sentence
-    public String removeTimePhrases(String input) {
-        // Convert the input to lowercase for case-insensitive keyword matching
-        String modifiedInput = input.toLowerCase();
-
-        // Remove all time-related keywords from the input
-        for (String keyword : TIME_ADJUSTMENTS.keySet()) {
-            if (modifiedInput.contains(keyword)) {
-                modifiedInput = modifiedInput.replace(keyword, "").trim(); // Remove keyword and trim spaces
-            }
-        }
-
-        modifiedInput = modifiedInput.replace("." , "").replace("at" , "");
-        // Remove any specific times matching the TIME_REGEX pattern
-        modifiedInput = modifiedInput.replaceAll(TIME_REGEX, "").trim(); // Remove matched times and trim spaces
-
-        // Return the cleaned input without time-related phrases and specific times
-        System.out.println("removeTimePhrases :  "+ modifiedInput);
-        return modifiedInput;
     }
 
 }
